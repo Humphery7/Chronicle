@@ -1,14 +1,14 @@
-# AudioDiary Backend
+# Chronicle Backend
 
 AI-powered journaling app with speech-to-text, CBT-style chat, and text-to-speech capabilities. Built with FastAPI and cloud-based AI models.
 
 ## Features
 
-- **🎙️ Speech-to-Text (ASR)**: Convert audio recordings to text using Whisper
-- **💬 CBT-Style Chat**: Get supportive, reflective responses using LangChain
-- **🔊 Text-to-Speech (TTS)**: Convert AI responses to audio
-- **🧠 Conversation Memory**: Maintains context across chat interactions
-- **☁️ Cloud-First**: All heavy AI processing is handled by cloud APIs
+- **Speech-to-Text (ASR)**: Convert audio recordings to text using Whisper
+- **CBT-Style Chat**: Get supportive, reflective responses using LangChain
+- **Text-to-Speech (TTS)**: Convert AI responses to audio
+- **Conversation Memory**: Maintains context across chat interactions
+- **Cloud-First**: All heavy AI processing is handled by cloud APIs
 
 ## Architecture
 
