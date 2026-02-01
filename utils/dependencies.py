@@ -1,21 +1,19 @@
 """Dependency injection functions for FastAPI endpoints."""
 
 import logging
-from typing import Annotated, Generator
+from typing import Annotated, Any, Generator
 
 from fastapi import Depends
 from huggingface_hub import AsyncInferenceClient
-from langchain.memory import ConversationBufferWindowMemory
-from langchain_openai import ChatOpenAI
+from langchain_community.chat_message_histories import ChatMessageHistory
 
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Global instances (initialized at startup)
 _hf_client: AsyncInferenceClient | None = None
 _llm_chain = None
-_conversation_memory: dict[str, ConversationBufferWindowMemory] = {}
+_conversation_memory: dict[str, ChatMessageHistory] = {}
 
 
 def initialize_clients() -> None:
@@ -23,7 +21,6 @@ def initialize_clients() -> None:
     global _hf_client, _llm_chain
     
     try:
-        # Initialize HuggingFace client
         _hf_client = AsyncInferenceClient(
             token=settings.huggingface_api_key,
             timeout=settings.hf_timeout,
@@ -31,7 +28,15 @@ def initialize_clients() -> None:
         logger.info("HuggingFace AsyncInferenceClient initialized")
         
         # Initialize LLM (supports multiple providers via LangChain)
-        if settings.llm_provider == "openai":
+        if settings.llm_provider == "germini":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            _llm_chain = ChatGoogleGenerativeAI(
+                model=settings.llm_model,
+                temperature=settings.llm_temperature,
+                max_tokens=settings.llm_max_tokens,
+                api_key=settings.llm_api_key,
+            )
+        elif settings.llm_provider == "openai":
             from langchain_openai import ChatOpenAI
             _llm_chain = ChatOpenAI(
                 model=settings.llm_model,
@@ -48,7 +53,6 @@ def initialize_clients() -> None:
                 api_key=settings.llm_api_key,
             )
         else:
-            # Default fallback
             _llm_chain = ChatOpenAI(
                 model=settings.llm_model,
                 temperature=settings.llm_temperature,
@@ -101,21 +105,17 @@ def get_llm():
     return _llm_chain
 
 
-def get_conversation_memory(user_id: str = "default") -> ConversationBufferWindowMemory:
+def get_conversation_memory(user_id: str = "default") -> ChatMessageHistory:
     """Get or create conversation memory for a user.
     
     Args:
         user_id: User identifier for memory isolation
         
     Returns:
-        ConversationBufferWindowMemory instance
+        ChatMessageHistory instance
     """
     if user_id not in _conversation_memory:
-        _conversation_memory[user_id] = ConversationBufferWindowMemory(
-            k=settings.conversation_memory_size,
-            return_messages=True,
-            memory_key="chat_history",
-        )
+        _conversation_memory[user_id] = ChatMessageHistory()
         logger.debug(f"Created new conversation memory for user: {user_id}")
     
     return _conversation_memory[user_id]
@@ -123,4 +123,4 @@ def get_conversation_memory(user_id: str = "default") -> ConversationBufferWindo
 
 # Type aliases for dependency injection
 HFClient = Annotated[AsyncInferenceClient, Depends(get_hf_client)]
-LLM = Annotated[ChatOpenAI, Depends(get_llm)]
+LLM = Annotated[Any, Depends(get_llm)]

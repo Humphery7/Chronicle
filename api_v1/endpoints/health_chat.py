@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 
 from api_v1.schemas import ChatRequest, ChatResponse, ErrorResponse
 from utils.chat_utils import ChatError, generate_chat_response
-from utils.dependencies import LLM, get_conversation_memory
+from utils.dependencies import get_conversation_memory, get_llm
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,6 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 )
 async def chat_endpoint(
     request: ChatRequest,
-    llm: LLM = None,
 ) -> ChatResponse:
     """
     Generate a supportive, CBT-style response to user's message.
@@ -39,6 +38,9 @@ async def chat_endpoint(
     """
     try:
         logger.info(f"Chat request received - user_id: {request.user_id or 'default'}")
+        
+        # Get LLM instance from backend configuration
+        llm = get_llm()
         
         # Get conversation memory for this user
         user_id = request.user_id or "default"

@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,7 +21,7 @@ from utils.dependencies import cleanup_clients, initialize_clients
 from utils.tts_utils import cleanup_old_audio_files
 
 
-load_dotenv()
+
 
 
 setup_logging()
@@ -44,7 +45,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         raise RuntimeError(f"Missing required API keys: {', '.join(missing_keys)}")
     
     try:
-        # Initialize clients
         initialize_clients()
         logger.info("All services initialized successfully")
     except Exception as e:

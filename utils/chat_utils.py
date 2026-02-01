@@ -3,9 +3,9 @@
 import logging
 from typing import Any
 
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferWindowMemory
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_community.chat_message_histories import ChatMessageHistory
 
 from config.settings import settings
 
@@ -18,7 +18,7 @@ class ChatError(Exception):
 
 
 # CBT-style prompt template for supportive journaling
-CBT_PROMPT_TEMPLATE = """You are a supportive AI journaling assistant trained in Cognitive Behavioral Therapy (CBT) principles. Your role is to help users reflect on their thoughts and feelings through gentle, non-judgmental conversation.
+CBT_SYSTEM_PROMPT = """You are a supportive AI journaling assistant trained in Cognitive Behavioral Therapy (CBT) principles. Your role is to help users reflect on their thoughts and feelings through gentle, non-judgmental conversation.
 
 Guidelines:
 - Be warm, empathetic, and supportive
@@ -27,48 +27,18 @@ Guidelines:
 - Use CBT techniques like thought examination and reframing when appropriate
 - Never provide medical advice or diagnosis
 - Keep responses concise (2-3 sentences ideal)
-- Reflect back what the user shares to show understanding
+- Reflect back what the user shares to show understanding"""
 
-Current conversation:
-{chat_history}
-
-User: {input}
-
-Your supportive response:"""
-
-CBT_PROMPT = PromptTemplate(
-    input_variables=["chat_history", "input"],
-    template=CBT_PROMPT_TEMPLATE,
-)
-
-
-def create_conversation_chain(
-    llm: Any,
-    memory: ConversationBufferWindowMemory,
-) -> ConversationChain:
-    """Create a conversation chain with CBT-style prompting.
-    
-    Args:
-        llm: LangChain LLM instance
-        memory: Conversation memory instance
-        
-    Returns:
-        Configured ConversationChain
-    """
-    chain = ConversationChain(
-        llm=llm,
-        prompt=CBT_PROMPT,
-        memory=memory,
-        verbose=settings.debug,
-    )
-    
-    logger.debug("Created conversation chain with CBT prompt")
-    return chain
+CBT_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", CBT_SYSTEM_PROMPT),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("human", "{input}"),
+])
 
 
 async def generate_chat_response(
     llm: Any,
-    memory: ConversationBufferWindowMemory,
+    memory: ChatMessageHistory,
     user_message: str,
 ) -> str:
     """Generate a CBT-style response to user's message.
@@ -87,20 +57,30 @@ async def generate_chat_response(
     try:
         logger.info(f"Generating chat response for message length: {len(user_message)} chars")
         
-        # Create conversation chain
-        chain = create_conversation_chain(llm, memory)
+        # Create chain with prompt
+        chain = CBT_PROMPT | llm
+        
+        # Get chat history from memory
+        chat_history = memory.messages
         
         # Generate response
-        response = await chain.ainvoke({"input": user_message})
+        response = await chain.ainvoke({
+            "input": user_message,
+            "chat_history": chat_history
+        })
         
-        # Extract response text
-        if isinstance(response, dict):
-            response_text = response.get("response", "")
+        # Extract response text from AIMessage
+        if hasattr(response, 'content'):
+            response_text = response.content
         else:
             response_text = str(response)
         
         if not response_text or not response_text.strip():
             raise ChatError("Generated response is empty")
+        
+        # Add messages to memory
+        memory.add_user_message(user_message)
+        memory.add_ai_message(response_text)
         
         logger.info(f"Chat response generated successfully. Length: {len(response_text)} chars")
         
@@ -113,7 +93,7 @@ async def generate_chat_response(
         raise ChatError(f"Failed to generate response: {str(e)}")
 
 
-def clear_conversation_memory(memory: ConversationBufferWindowMemory) -> None:
+def clear_conversation_memory(memory: ChatMessageHistory) -> None:
     """Clear conversation memory for a fresh start.
     
     Args:
@@ -123,7 +103,7 @@ def clear_conversation_memory(memory: ConversationBufferWindowMemory) -> None:
     logger.debug("Conversation memory cleared")
 
 
-def get_conversation_history(memory: ConversationBufferWindowMemory) -> list[dict]:
+def get_conversation_history(memory: ChatMessageHistory) -> list[dict]:
     """Get conversation history from memory.
     
     Args:
@@ -133,7 +113,7 @@ def get_conversation_history(memory: ConversationBufferWindowMemory) -> list[dic
         List of message dictionaries
     """
     try:
-        messages = memory.load_memory_variables({}).get("chat_history", [])
+        messages = memory.messages
         return [{"role": msg.type, "content": msg.content} for msg in messages]
     except Exception as e:
         logger.warning(f"Failed to load conversation history: {e}")

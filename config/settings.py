@@ -1,8 +1,8 @@
 """Application settings using Pydantic Settings for type-safe configuration."""
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,10 +32,17 @@ class Settings(BaseSettings):
         description="Allowed CORS origins",
     )
 
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
+
 
     huggingface_api_key: str = Field(default="", description="Hugging Face API token")
     whisper_model: str = Field(
-        default="openai/whisper-large-v3", description="Whisper ASR model"
+        default="openai/whisper-large-v3-turbo", description="Whisper ASR model"
     )
     tts_model: str = Field(
         default="facebook/mms-tts-eng", description="Text-to-speech model"
@@ -43,12 +50,12 @@ class Settings(BaseSettings):
     hf_timeout: int = Field(default=60, description="HuggingFace API timeout in seconds")
 
 
-    llm_provider: Literal["openai", "anthropic", "cohere", "huggingface"] = Field(
-        default="openai", description="LLM provider for chat"
+    llm_provider: Literal["openai", "anthropic", "cohere", "huggingface", "germini"] = Field(
+        default="germini", description="LLM provider for chat"
     )
     llm_api_key: str = Field(default="", description="LLM API key")
     llm_model: str = Field(
-        default="gpt-4o-mini", description="LLM model name"
+        default="gemini-3-flash-preview", description="LLM model name"
     )
     llm_temperature: float = Field(
         default=0.7, ge=0.0, le=2.0, description="LLM temperature"
